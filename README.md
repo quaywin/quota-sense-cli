@@ -60,6 +60,7 @@ qs --full # or qs -f
 ### 3. Other Commands
 
 - `qs config`: Reconfigure the remote server and token.
+- `qs update`: Update to the latest version.
 - `qs version`: Show current version.
 - `qs --help`: List all available commands and flags.
 
