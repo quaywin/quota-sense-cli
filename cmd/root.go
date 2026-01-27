@@ -20,6 +20,7 @@ var (
 	emailColor   = color.New(color.FgWhite)
 	successColor = color.New(color.FgGreen, color.Bold)
 	errorColor   = color.New(color.FgRed, color.Bold)
+	fullMode     bool
 )
 
 var rootCmd = &cobra.Command{
@@ -86,25 +87,27 @@ func displayQuota(cfg *config.Config) {
 
 			for modelName, limit := range limits {
 				displayModelName := modelName
-				if f.Provider == "antigravity" {
-					switch modelName {
-					case "gemini-3-pro-high":
-						displayModelName = "Gemini 3 Pro"
-					case "gemini-3-flash":
-						displayModelName = "Gemini 3 Flash"
-					case "claude-sonnet-4-5":
-						displayModelName = "Claude/GPT"
-					default:
-						continue
-					}
-				} else if f.Provider == "gemini-cli" {
-					switch modelName {
-					case "gemini-3-pro-preview":
-						displayModelName = "Gemini Pro"
-					case "gemini-3-flash-preview":
-						displayModelName = "Gemini Flash"
-					default:
-						continue
+				if !fullMode {
+					if f.Provider == "antigravity" {
+						switch modelName {
+						case "gemini-3-pro-high":
+							displayModelName = "Gemini 3 Pro"
+						case "gemini-3-flash":
+							displayModelName = "Gemini 3 Flash"
+						case "claude-sonnet-4-5":
+							displayModelName = "Claude/GPT"
+						default:
+							continue
+						}
+					} else if f.Provider == "gemini-cli" {
+						switch modelName {
+						case "gemini-3-pro-preview":
+							displayModelName = "Gemini Pro"
+						case "gemini-3-flash-preview":
+							displayModelName = "Gemini Flash"
+						default:
+							continue
+						}
 					}
 				}
 
@@ -162,4 +165,6 @@ func Execute() {
 	}
 }
 
-func init() {}
+func init() {
+	rootCmd.Flags().BoolVarP(&fullMode, "full", "f", false, "Display all available models")
+}

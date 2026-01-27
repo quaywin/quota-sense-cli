@@ -45,17 +45,30 @@ You will need:
 
 ### 2. View Quotas
 
-Simply run the main command to see all your active model limits:
+Simply run the main command to see your primary model limits:
 
 ```bash
 qs
 ```
 
+For a comprehensive view of all available models across all providers, use the full mode:
+
+```bash
+qs --full # or qs -f
+```
+
 ### 3. Other Commands
 
 - `qs version`: Show current version.
-- `qs plan`: Review planned usage (simulation).
 - `qs --help`: List all available commands and flags.
+
+## Supported Providers
+
+By default, the CLI provides a filtered view optimized for the following providers:
+- **antigravity**: Shows Gemini 3 Pro/Flash and Claude/GPT models.
+- **gemini-cli**: Shows Gemini Pro/Flash models.
+
+All other providers and additional models can be viewed using the `--full` flag.
 
 ## Configuration
 
