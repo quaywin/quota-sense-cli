@@ -68,6 +68,8 @@ func displayQuota(cfg *config.Config) {
 	}
 
 	var wg sync.WaitGroup
+	var mu sync.Mutex
+
 	fmt.Println()
 	headerColor.Printf("%-40s | %-15s | %-20s | %-10s | %-15s\n", "Account (Email)", "Provider", "Model", "Remaining", "Reset In")
 	headerColor.Println(strings.Repeat("-", 115))
@@ -141,10 +143,12 @@ func displayQuota(cfg *config.Config) {
 					}
 				}
 
+				mu.Lock()
 				emailColor.Printf("%-40s | ", f.Email)
 				fmt.Printf("%-15s | %-20s | ", f.Provider, displayModelName)
 				quotaColor.Printf("%-10s | ", limit.Remaining)
 				fmt.Printf("%-15s\n", resetStr)
+				mu.Unlock()
 			}
 		}(file)
 	}
