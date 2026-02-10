@@ -53,6 +53,33 @@ func (c *Client) FetchUsage() ([]models.AuthFile, error) {
 }
 
 func (c *Client) FetchQuota(file models.AuthFile) (map[string]models.ModelLimit, error) {
+	if file.Provider == "codex" {
+		resp, err := c.GetCodexProvider(file)
+		if err != nil {
+			return nil, err
+		}
+
+		limits := make(map[string]models.ModelLimit)
+		modelName := resp.PlanType
+		if modelName == "" {
+			modelName = "codex"
+		}
+
+		remaining := 100.0 - resp.RateLimit.PrimaryWindow.UsedPercent
+		if remaining < 0 {
+			remaining = 0
+		}
+
+		resetTime := time.Unix(resp.RateLimit.PrimaryWindow.ResetAt, 0).Format(time.RFC3339)
+
+		limits[modelName] = models.ModelLimit{
+			Remaining:         fmt.Sprintf("%d%%", int(remaining)),
+			RemainingFraction: remaining / 100.0,
+			ResetTime:         resetTime,
+		}
+		return limits, nil
+	}
+
 	proxyURL := fmt.Sprintf("%s/v0/management/api-call", c.cfg.ServerURL)
 
 	googleURL := "https://daily-cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels"
@@ -142,4 +169,59 @@ func (c *Client) FetchQuota(file models.AuthFile) (map[string]models.ModelLimit,
 	}
 
 	return limits, nil
+}
+
+func (c *Client) GetCodexProvider(file models.AuthFile) (*models.CodexUsageResponse, error) {
+	proxyURL := fmt.Sprintf("%s/v0/management/api-call", c.cfg.ServerURL)
+
+	targetURL := "https://chatgpt.com/backend-api/wham/usage"
+	headers := map[string]string{
+		"Authorization":      "Bearer $TOKEN$",
+		"Content-Type":       "application/json",
+		"User-Agent":         "codex_cli_rs/0.76.0 (Debian 13.0.0; x86_64) WindowsTerminal",
+		"Chatgpt-Account-Id": file.IDToken.ChatgptAccountID,
+	}
+
+	proxyReqBody := models.ProxyRequest{
+		AuthIndex: file.AuthIndex,
+		Method:    "GET",
+		URL:       targetURL,
+		Header:    headers,
+	}
+
+	jsonData, err := json.Marshal(proxyReqBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal proxy request: %v", err)
+	}
+
+	req, _ := http.NewRequest("POST", proxyURL, bytes.NewBuffer(jsonData))
+	req.Header.Set("Authorization", "Bearer "+c.cfg.ManagementToken)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("management server returned status %d", resp.StatusCode)
+	}
+
+	var proxyResp models.ProxyResponse
+	if err := json.NewDecoder(resp.Body).Decode(&proxyResp); err != nil {
+		return nil, err
+	}
+
+	if proxyResp.StatusCode != 200 {
+		return nil, fmt.Errorf("target API returned status %d", proxyResp.StatusCode)
+	}
+
+	var usageResp models.CodexUsageResponse
+	if err := json.Unmarshal([]byte(proxyResp.Body), &usageResp); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal usage response: %v", err)
+	}
+
+	return &usageResp, nil
 }

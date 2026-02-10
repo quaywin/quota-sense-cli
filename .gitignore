@@ -1,0 +1,25 @@
+# Binaries
+qs
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Build Artifacts
+dist/
+*.test
+*.out
+
+# Dependencies
+vendor/
+
+# OS Specific
+.DS_Store
+Thumbs.db
+
+# IDE / Editor
+.idea/
+.vscode/
+*.swp
+*.swo

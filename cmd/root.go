@@ -108,6 +108,11 @@ func displayQuota(cfg *config.Config) {
 						default:
 							continue
 						}
+					} else if f.Provider == "codex" {
+						// For codex, the modelName is the PlanType (e.g., "free", "plus")
+						// We want to show it, so no specific switch/continue logic for now
+						// unless there are specific sub-models we want to hide.
+						displayModelName = strings.Title(modelName)
 					}
 				}
 
