@@ -71,7 +71,7 @@ func displayQuota(cfg *config.Config) {
 	var mu sync.Mutex
 
 	fmt.Println()
-	headerColor.Printf("%-40s | %-15s | %-20s | %-10s | %-15s\n", "Account (Email)", "Provider", "Model", "Remaining", "Reset In")
+	headerColor.Printf("%-40s | %-15s | %-10s | %-15s | %-20s\n", "Account (Email)", "Provider", "Remaining", "Reset In", "Model")
 	headerColor.Println(strings.Repeat("-", 115))
 
 	for _, file := range files {
@@ -145,9 +145,9 @@ func displayQuota(cfg *config.Config) {
 
 				mu.Lock()
 				emailColor.Printf("%-40s | ", f.Email)
-				fmt.Printf("%-15s | %-20s | ", f.Provider, displayModelName)
+				fmt.Printf("%-15s | ", f.Provider)
 				quotaColor.Printf("%-10s | ", limit.Remaining)
-				fmt.Printf("%-15s\n", resetStr)
+				fmt.Printf("%-15s | %-20s\n", resetStr, displayModelName)
 				mu.Unlock()
 			}
 		}(file)
