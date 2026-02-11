@@ -1,15 +1,14 @@
 package models
 
 type AuthFile struct {
-	ID          string `json:"id"`
-	Email       string `json:"email"`
-	Provider    string `json:"provider"`
-	Disabled    bool   `json:"disabled"`
-	Unavailable bool   `json:"unavailable"`
-	AuthIndex   string `json:"auth_index"`
-	ProjectID   string `json:"project_id"`
-	Account     string `json:"account"`
-	IDToken     IDToken `json:"id_token"`
+	ID        string  `json:"id"`
+	Email     string  `json:"email"`
+	Provider  string  `json:"provider"`
+	Disabled  bool    `json:"disabled"`
+	AuthIndex string  `json:"auth_index"`
+	ProjectID string  `json:"project_id"`
+	Account   string  `json:"account"`
+	IDToken   IDToken `json:"id_token"`
 }
 
 type IDToken struct {
@@ -67,13 +66,13 @@ type GeminiQuotaResponse struct {
 
 // Codex response structures
 type CodexUsageResponse struct {
-	UserID     string    `json:"user_id"`
-	AccountID  string    `json:"account_id"`
-	Email      string    `json:"email"`
-	PlanType   string    `json:"plan_type"`
-	RateLimit  RateLimit `json:"rate_limit"`
-	Credits    any       `json:"credits"`
-	Promo      any       `json:"promo"`
+	UserID    string    `json:"user_id"`
+	AccountID string    `json:"account_id"`
+	Email     string    `json:"email"`
+	PlanType  string    `json:"plan_type"`
+	RateLimit RateLimit `json:"rate_limit"`
+	Credits   any       `json:"credits"`
+	Promo     any       `json:"promo"`
 }
 
 type RateLimit struct {

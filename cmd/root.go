@@ -6,12 +6,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/fatih/color"
 	"github.com/quaywin/quota-sense-cli/internal/api"
 	"github.com/quaywin/quota-sense-cli/internal/config"
 	"github.com/quaywin/quota-sense-cli/internal/models"
+	"github.com/quaywin/quota-sense-cli/internal/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -75,7 +75,7 @@ func displayQuota(cfg *config.Config) {
 	headerColor.Println(strings.Repeat("-", 115))
 
 	for _, file := range files {
-		if file.Disabled || file.Unavailable {
+		if file.Disabled {
 			continue
 		}
 
@@ -88,60 +88,15 @@ func displayQuota(cfg *config.Config) {
 			}
 
 			for modelName, limit := range limits {
-				displayModelName := modelName
-				if !fullMode {
-					if f.Provider == "antigravity" {
-						switch modelName {
-						case "gemini-3-pro-high":
-							displayModelName = "Gemini 3 Pro"
-						case "gemini-3-flash":
-							displayModelName = "Gemini 3 Flash"
-						case "claude-sonnet-4-5":
-							displayModelName = "Claude/GPT"
-						default:
-							continue
-						}
-					} else if f.Provider == "gemini-cli" {
-						switch modelName {
-						case "gemini-3-pro-preview":
-							displayModelName = "Gemini Pro"
-						case "gemini-3-flash-preview":
-							displayModelName = "Gemini Flash"
-						default:
-							continue
-						}
-					} else if f.Provider == "codex" {
-						// For codex, the modelName is the PlanType (e.g., "free", "plus")
-						// We want to show it, so no specific switch/continue logic for now
-						// unless there are specific sub-models we want to hide.
-						displayModelName = strings.Title(modelName)
-					}
+				displayModelName := utils.GetDisplayModelName(modelName, f.Provider, fullMode)
+				if displayModelName == "" {
+					continue
 				}
 
 				remainingStr := strings.TrimSuffix(limit.Remaining, "%")
 				remainingVal, _ := strconv.Atoi(remainingStr)
-
-				var quotaColor *color.Color
-				if remainingVal > 50 {
-					quotaColor = color.New(color.FgGreen)
-				} else if remainingVal > 20 {
-					quotaColor = color.New(color.FgYellow)
-				} else {
-					quotaColor = color.New(color.FgRed, color.Bold)
-				}
-
-				resetStr := "-"
-				if limit.ResetTime != "" {
-					resetTime, err := time.Parse(time.RFC3339, limit.ResetTime)
-					if err == nil {
-						duration := time.Until(resetTime)
-						if duration > 0 {
-							resetStr = formatDuration(duration)
-						} else {
-							resetStr = "Now"
-						}
-					}
-				}
+				quotaColor := utils.GetQuotaColor(remainingVal)
+				resetStr := utils.GetResetString(limit.ResetTime)
 
 				mu.Lock()
 				emailColor.Printf("%-40s | ", f.Email)
@@ -153,18 +108,6 @@ func displayQuota(cfg *config.Config) {
 		}(file)
 	}
 	wg.Wait()
-}
-
-func formatDuration(d time.Duration) string {
-	d = d.Round(time.Minute)
-	h := d / time.Hour
-	d -= h * time.Hour
-	m := d / time.Minute
-
-	if h > 0 {
-		return fmt.Sprintf("%dh %dm", h, m)
-	}
-	return fmt.Sprintf("%dm", m)
 }
 
 func Execute() {

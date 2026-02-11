@@ -12,6 +12,14 @@ import (
 	"github.com/quaywin/quota-sense-cli/internal/models"
 )
 
+const (
+	googleCloudCodeURL   = "https://daily-cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels"
+	geminiQuotaURL       = "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota"
+	chatgptUsageURL      = "https://chatgpt.com/backend-api/wham/usage"
+	antigravityUserAgent = "antigravity/1.11.5 darwin/amd64"
+	codexUserAgent       = "codex_cli_rs/0.76.0 (Debian 13.0.0; x86_64) WindowsTerminal"
+)
+
 type Client struct {
 	cfg *config.Config
 }
@@ -54,63 +62,68 @@ func (c *Client) FetchUsage() ([]models.AuthFile, error) {
 
 func (c *Client) FetchQuota(file models.AuthFile) (map[string]models.ModelLimit, error) {
 	if file.Provider == "codex" {
-		resp, err := c.GetCodexProvider(file)
-		if err != nil {
-			return nil, err
-		}
+		return c.fetchCodexQuota(file)
+	}
+	return c.fetchGoogleQuota(file)
+}
 
-		limits := make(map[string]models.ModelLimit)
-		modelName := resp.PlanType
-		if modelName == "" {
-			modelName = "codex"
-		}
-
-		remaining := 100.0 - resp.RateLimit.PrimaryWindow.UsedPercent
-		if remaining < 0 {
-			remaining = 0
-		}
-
-		resetTime := time.Unix(resp.RateLimit.PrimaryWindow.ResetAt, 0).Format(time.RFC3339)
-
-		limits[modelName] = models.ModelLimit{
-			Remaining:         fmt.Sprintf("%d%%", int(remaining)),
-			RemainingFraction: remaining / 100.0,
-			ResetTime:         resetTime,
-		}
-		return limits, nil
+func (c *Client) fetchCodexQuota(file models.AuthFile) (map[string]models.ModelLimit, error) {
+	resp, err := c.GetCodexProvider(file)
+	if err != nil {
+		return nil, err
 	}
 
+	limits := make(map[string]models.ModelLimit)
+	modelName := resp.PlanType
+	if modelName == "" {
+		modelName = "codex"
+	}
+
+	remaining := 100.0 - resp.RateLimit.PrimaryWindow.UsedPercent
+	if remaining < 0 {
+		remaining = 0
+	}
+
+	resetTime := time.Unix(resp.RateLimit.PrimaryWindow.ResetAt, 0).Format(time.RFC3339)
+
+	limits[modelName] = models.ModelLimit{
+		Remaining:         fmt.Sprintf("%d%%", int(remaining)),
+		RemainingFraction: remaining / 100.0,
+		ResetTime:         resetTime,
+	}
+	return limits, nil
+}
+
+func (c *Client) fetchGoogleQuota(file models.AuthFile) (map[string]models.ModelLimit, error) {
 	proxyURL := fmt.Sprintf("%s/v0/management/api-call", c.cfg.ServerURL)
 
-	googleURL := "https://daily-cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels"
+	targetURL := googleCloudCodeURL
 	headers := map[string]string{
 		"Authorization": "Bearer $TOKEN$",
 		"Content-Type":  "application/json",
-		"User-Agent":    "antigravity/1.11.5 darwin/amd64",
+		"User-Agent":    antigravityUserAgent,
 	}
 
 	data := "{}"
 	if file.Provider == "gemini-cli" {
-		googleURL = "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota"
+		targetURL = geminiQuotaURL
 		delete(headers, "User-Agent")
 
 		projectID := file.ProjectID
 		if projectID == "" && file.Account != "" {
-			// Extract project ID from account string like "email (project-id)"
 			if start := strings.Index(file.Account, "("); start != -1 {
 				if end := strings.Index(file.Account, ")"); end != -1 && end > start {
 					projectID = file.Account[start+1 : end]
 				}
 			}
 		}
-
 		data = fmt.Sprintf(`{"project":"%s"}`, projectID)
 	}
 
 	proxyReqBody := models.ProxyRequest{
 		AuthIndex: file.AuthIndex,
 		Method:    "POST",
-		URL:       googleURL,
+		URL:       targetURL,
 		Header:    headers,
 		Data:      data,
 	}
@@ -174,18 +187,17 @@ func (c *Client) FetchQuota(file models.AuthFile) (map[string]models.ModelLimit,
 func (c *Client) GetCodexProvider(file models.AuthFile) (*models.CodexUsageResponse, error) {
 	proxyURL := fmt.Sprintf("%s/v0/management/api-call", c.cfg.ServerURL)
 
-	targetURL := "https://chatgpt.com/backend-api/wham/usage"
 	headers := map[string]string{
 		"Authorization":      "Bearer $TOKEN$",
 		"Content-Type":       "application/json",
-		"User-Agent":         "codex_cli_rs/0.76.0 (Debian 13.0.0; x86_64) WindowsTerminal",
+		"User-Agent":         codexUserAgent,
 		"Chatgpt-Account-Id": file.IDToken.ChatgptAccountID,
 	}
 
 	proxyReqBody := models.ProxyRequest{
 		AuthIndex: file.AuthIndex,
 		Method:    "GET",
-		URL:       targetURL,
+		URL:       chatgptUsageURL,
 		Header:    headers,
 	}
 
