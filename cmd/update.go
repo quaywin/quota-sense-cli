@@ -90,7 +90,7 @@ func doUpdate(release *releaseInfo) error {
 	}
 
 	// Format expected asset name: qs_v0.1.0_darwin_arm64.tar.gz
-	assetPattern := fmt.Sprintf("%s_%s_%s", repoName, targetOS, targetArch)
+	assetPattern := fmt.Sprintf("qs_%s_%s", targetOS, targetArch)
 	var downloadURL string
 	for _, asset := range release.Assets {
 		if strings.Contains(asset.Name, assetPattern) && strings.HasSuffix(asset.Name, extension) {
