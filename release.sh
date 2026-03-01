@@ -8,6 +8,10 @@ NOTES=$2
 
 # Auto-detect version if not provided
 if [ -z "$VERSION" ]; then
+    # Fetch tags from remote to ensure we have the latest
+    echo "🔄 Fetching latest tags from remote..."
+    git fetch --tags origin > /dev/null 2>&1
+    
     LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null)
     if [ -z "$LATEST_TAG" ]; then
         VERSION="v0.1.0"
