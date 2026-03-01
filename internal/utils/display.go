@@ -16,25 +16,26 @@ func GetDisplayModelName(modelName, provider string, fullMode bool) string {
 	}
 
 	if provider == "antigravity" {
-		switch modelName {
-		case "gemini-3-pro-high":
-			return "Gemini 3 Pro"
-		case "gemini-3-flash":
-			return "Gemini 3 Flash"
-		case "claude-sonnet-4-5":
+		lowerModel := strings.ToLower(modelName)
+		if strings.Contains(lowerModel, "claude") {
 			return "Claude/GPT"
-		default:
-			return "" // Signal to skip this model
 		}
+		if strings.Contains(lowerModel, "pro") {
+			return "Gemini 3 Pro"
+		}
+		if strings.Contains(lowerModel, "flash") {
+			return "Gemini 3 Flash"
+		}
+		return "" // Signal to skip this model
 	} else if provider == "gemini-cli" {
-		switch modelName {
-		case "gemini-3-pro-preview":
+		lowerModel := strings.ToLower(modelName)
+		if strings.Contains(lowerModel, "pro") {
 			return "Gemini Pro"
-		case "gemini-3-flash-preview":
-			return "Gemini Flash"
-		default:
-			return "" // Signal to skip this model
 		}
+		if strings.Contains(lowerModel, "flash") {
+			return "Gemini Flash"
+		}
+		return "" // Signal to skip this model
 	} else if provider == "codex" {
 		return strings.Title(modelName)
 	}
