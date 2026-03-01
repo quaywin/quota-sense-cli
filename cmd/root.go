@@ -87,10 +87,20 @@ func displayQuota(cfg *config.Config) {
 				return
 			}
 
+			// In non-full mode, we want to group by display model name to avoid duplicates.
+			seenModels := make(map[string]bool)
+
 			for modelName, limit := range limits {
 				displayModelName := utils.GetDisplayModelName(modelName, f.Provider, fullMode)
 				if displayModelName == "" {
 					continue
+				}
+
+				if !fullMode {
+					if seenModels[displayModelName] {
+						continue // Skip if we've already displayed a model in this group
+					}
+					seenModels[displayModelName] = true
 				}
 
 				remainingStr := strings.TrimSuffix(limit.Remaining, "%")
