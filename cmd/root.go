@@ -27,6 +27,12 @@ var rootCmd = &cobra.Command{
 	Use:   "qs",
 	Short: "QuotaSense CLI - Monitor your AI model usage",
 	Long:  `QuotaSense is a CLI tool to monitor and manage your AI model usage quotas from the terminal.`,
+	PersistentPostRun: func(cmd *cobra.Command, args []string) {
+		if cmd.Name() == "update" || cmd.Name() == "version" {
+			return
+		}
+		checkAndNotifyUpdate()
+	},
 	Run: func(cmd *cobra.Command, args []string) {
 		cfg, err := config.LoadConfig()
 		if err != nil {

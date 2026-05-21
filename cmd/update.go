@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -61,8 +62,11 @@ var updateCmd = &cobra.Command{
 }
 
 func getLatestRelease() (*releaseInfo, error) {
+	client := &http.Client{
+		Timeout: 3 * time.Second,
+	}
 	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", repoOwner, repoName)
-	resp, err := http.Get(url)
+	resp, err := client.Get(url)
 	if err != nil {
 		return nil, err
 	}
