@@ -80,15 +80,28 @@ func displayQuota(cfg *config.Config) {
 	}
 
 	for _, file := range files {
-		if file.Disabled {
-			continue
-		}
-
 		wg.Add(1)
 		go func(f models.AuthFile) {
 			defer wg.Done()
 			limits, err := client.FetchQuota(f)
 			if err != nil {
+				if f.Disabled {
+					mu.Lock()
+					disabledColor := color.New(color.FgHiBlack)
+					emailStr := f.Email
+					if !strings.Contains(emailStr, "(disabled)") {
+						emailStr += " (disabled)"
+					}
+					disabledColor.Printf("%-40s | ", emailStr)
+					disabledColor.Printf("%-15s | ", f.Provider)
+					disabledColor.Printf("%-10s | ", "Disabled")
+					if fullMode {
+						disabledColor.Printf("%-15s | %-25s | %-20s\n", "-", "-", "-")
+					} else {
+						disabledColor.Printf("%-15s | %-20s\n", "-", "-")
+					}
+					mu.Unlock()
+				}
 				return
 			}
 
@@ -115,20 +128,70 @@ func displayQuota(cfg *config.Config) {
 				}
 			}
 
+			if len(bestInGroup) == 0 && f.Disabled {
+				mu.Lock()
+				disabledColor := color.New(color.FgHiBlack)
+				emailStr := f.Email
+				if !strings.Contains(emailStr, "(disabled)") {
+					emailStr += " (disabled)"
+				}
+				disabledColor.Printf("%-40s | ", emailStr)
+				disabledColor.Printf("%-15s | ", f.Provider)
+				disabledColor.Printf("%-10s | ", "Disabled")
+				if fullMode {
+					disabledColor.Printf("%-15s | %-25s | %-20s\n", "-", "-", "-")
+				} else {
+					disabledColor.Printf("%-15s | %-20s\n", "-", "-")
+				}
+				mu.Unlock()
+				return
+			}
+
 			for _, entry := range bestInGroup {
 				remainingStr := strings.TrimSuffix(entry.limit.Remaining, "%")
-				remainingVal, _ := strconv.Atoi(remainingStr)
-				quotaColor := utils.GetQuotaColor(remainingVal)
+				remainingVal, err := strconv.Atoi(remainingStr)
+
+				var quotaColor *color.Color
+				var rowColor *color.Color
+				var modelColor *color.Color
+
+				if f.Disabled {
+					rowColor = color.New(color.FgHiBlack)
+					quotaColor = rowColor
+					modelColor = rowColor
+				} else {
+					rowColor = color.New(color.FgWhite)
+					if err == nil {
+						quotaColor = utils.GetQuotaColor(remainingVal)
+						if remainingVal == 0 {
+							modelColor = color.New(color.FgRed, color.Bold)
+						} else {
+							modelColor = rowColor
+						}
+					} else {
+						quotaColor = color.New(color.FgWhite)
+						modelColor = rowColor
+					}
+				}
+
 				resetStr := utils.GetResetString(entry.limit.ResetTime)
 
 				mu.Lock()
-				emailColor.Printf("%-40s | ", f.Email)
-				fmt.Printf("%-15s | ", f.Provider)
+				emailStr := f.Email
+				if f.Disabled && !strings.Contains(emailStr, "(disabled)") {
+					emailStr += " (disabled)"
+				}
+
+				rowColor.Printf("%-40s | ", emailStr)
+				rowColor.Printf("%-15s | ", f.Provider)
 				quotaColor.Printf("%-10s | ", entry.limit.Remaining)
 				if fullMode {
-					fmt.Printf("%-15s | %-25s | %-20s\n", resetStr, entry.limit.DisplayName, entry.displayModelName)
+					rowColor.Printf("%-15s | ", resetStr)
+					modelColor.Printf("%-25s | ", entry.limit.DisplayName)
+					modelColor.Printf("%-20s\n", entry.displayModelName)
 				} else {
-					fmt.Printf("%-15s | %-20s\n", resetStr, entry.displayModelName)
+					rowColor.Printf("%-15s | ", resetStr)
+					modelColor.Printf("%-20s\n", entry.displayModelName)
 				}
 				mu.Unlock()
 			}
