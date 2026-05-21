@@ -1,14 +1,15 @@
 BINARY_NAME=qs
-VERSION=v0.1.0
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 INSTALL_PATH=/usr/local/bin
+LDFLAGS=-ldflags "-X github.com/quaywin/quota-sense-cli/cmd.Version=$(VERSION)"
 
 .PHONY: all build clean install uninstall release
 
 all: build
 
 build:
-	@echo "Building QuotaSense CLI..."
-	go build -o $(BINARY_NAME) main.go
+	@echo "Building QuotaSense CLI $(VERSION)..."
+	go build $(LDFLAGS) -o $(BINARY_NAME) main.go
 
 clean:
 	@echo "Cleaning up..."

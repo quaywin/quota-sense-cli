@@ -82,18 +82,30 @@ rm ~/.quota-sense.json
 
 ## Development
 
+### Building from Source
+
 To build the project for development:
 
 ```bash
 make build
-./qs
+./qs version
 ```
 
-To generate release binaries:
+The version of the binary will be dynamically set using the latest Git tag (`git describe --tags --always --dirty`) and Go linker flags (`-ldflags`).
+
+### Releasing
+
+To release a new version:
 
 ```bash
+# Auto-detects next patch version based on tags, builds binaries, and creates a GitHub Release
 make release
+
+# Or specify a custom version
+./release.sh v0.2.0
 ```
+
+Since the version is injected into the binary at build time via Go linker flags, there is **no need to modify source files or make extra commits** to bump the version.
 
 ---
 Built with 💙 for the AI Developer Community.

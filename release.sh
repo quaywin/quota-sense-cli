@@ -11,7 +11,7 @@ if [ -z "$VERSION" ]; then
     # Fetch tags from remote to ensure we have the latest
     echo "🔄 Fetching latest tags from remote..."
     git fetch --tags origin > /dev/null 2>&1
-    
+
     LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null)
     if [ -z "$LATEST_TAG" ]; then
         VERSION="v0.1.0"
@@ -44,10 +44,6 @@ DIST_DIR="dist"
 
 echo "🚀 Preparing release $VERSION..."
 
-# Update version in cmd/version.go
-sed -i '' "s/var Version = \".*\"/var Version = \"$VERSION\"/" cmd/version.go 2>/dev/null || \
-sed -i "s/var Version = \".*\"/var Version = \"$VERSION\"/" cmd/version.go
-
 # Clean dist directory
 rm -rf $DIST_DIR
 mkdir -p $DIST_DIR
@@ -72,7 +68,7 @@ for platform in "${platforms[@]}"; do
     fi
 
     echo "📦 Building for $GOOS/$GOARCH..."
-    env GOOS=$GOOS GOARCH=$GOARCH go build -o "$DIST_DIR/$OUTPUT_NAME" main.go
+    env GOOS=$GOOS GOARCH=$GOARCH go build -ldflags "-X github.com/quaywin/quota-sense-cli/cmd.Version=$VERSION" -o "$DIST_DIR/$OUTPUT_NAME" main.go
 
     # Package
     PACKAGE_NAME="${BINARY_NAME}_${VERSION}_${GOOS}_${GOARCH}"
