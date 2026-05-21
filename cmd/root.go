@@ -71,8 +71,13 @@ func displayQuota(cfg *config.Config) {
 	var mu sync.Mutex
 
 	fmt.Println()
-	headerColor.Printf("%-40s | %-15s | %-10s | %-15s | %-20s\n", "Account (Email)", "Provider", "Remaining", "Reset In", "Model")
-	headerColor.Println(strings.Repeat("-", 115))
+	if fullMode {
+		headerColor.Printf("%-40s | %-15s | %-10s | %-15s | %-25s | %-20s\n", "Account (Email)", "Provider", "Remaining", "Reset In", "Model Name", "Model")
+		headerColor.Println(strings.Repeat("-", 140))
+	} else {
+		headerColor.Printf("%-40s | %-15s | %-10s | %-15s | %-20s\n", "Account (Email)", "Provider", "Remaining", "Reset In", "Model")
+		headerColor.Println(strings.Repeat("-", 115))
+	}
 
 	for _, file := range files {
 		if file.Disabled {
@@ -87,8 +92,12 @@ func displayQuota(cfg *config.Config) {
 				return
 			}
 
-			// In non-full mode, we want to group by display model name to avoid duplicates.
-			seenModels := make(map[string]bool)
+			// Group by display model name, keeping the one with lowest remaining fraction.
+			type displayEntry struct {
+				limit            models.ModelLimit
+				displayModelName string
+			}
+			bestInGroup := make(map[string]displayEntry)
 
 			for modelName, limit := range limits {
 				displayModelName := utils.GetDisplayModelName(modelName, f.Provider, fullMode)
@@ -96,23 +105,31 @@ func displayQuota(cfg *config.Config) {
 					continue
 				}
 
-				if !fullMode {
-					if seenModels[displayModelName] {
-						continue // Skip if we've already displayed a model in this group
-					}
-					seenModels[displayModelName] = true
+				key := displayModelName
+				if fullMode {
+					key = modelName
 				}
 
-				remainingStr := strings.TrimSuffix(limit.Remaining, "%")
+				if existing, ok := bestInGroup[key]; !ok || limit.RemainingFraction < existing.limit.RemainingFraction {
+					bestInGroup[key] = displayEntry{limit, displayModelName}
+				}
+			}
+
+			for _, entry := range bestInGroup {
+				remainingStr := strings.TrimSuffix(entry.limit.Remaining, "%")
 				remainingVal, _ := strconv.Atoi(remainingStr)
 				quotaColor := utils.GetQuotaColor(remainingVal)
-				resetStr := utils.GetResetString(limit.ResetTime)
+				resetStr := utils.GetResetString(entry.limit.ResetTime)
 
 				mu.Lock()
 				emailColor.Printf("%-40s | ", f.Email)
 				fmt.Printf("%-15s | ", f.Provider)
-				quotaColor.Printf("%-10s | ", limit.Remaining)
-				fmt.Printf("%-15s | %-20s\n", resetStr, displayModelName)
+				quotaColor.Printf("%-10s | ", entry.limit.Remaining)
+				if fullMode {
+					fmt.Printf("%-15s | %-25s | %-20s\n", resetStr, entry.limit.DisplayName, entry.displayModelName)
+				} else {
+					fmt.Printf("%-15s | %-20s\n", resetStr, entry.displayModelName)
+				}
 				mu.Unlock()
 			}
 		}(file)

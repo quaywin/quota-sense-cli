@@ -20,11 +20,8 @@ func GetDisplayModelName(modelName, provider string, fullMode bool) string {
 		if strings.Contains(lowerModel, "claude") {
 			return "Claude/GPT"
 		}
-		if strings.Contains(lowerModel, "pro") {
-			return "Gemini 3 Pro"
-		}
-		if strings.Contains(lowerModel, "flash") {
-			return "Gemini 3 Flash"
+		if strings.Contains(lowerModel, "gemini") {
+			return "Gemini 3"
 		}
 		return "" // Signal to skip this model
 	} else if provider == "gemini-cli" {
@@ -56,10 +53,15 @@ func GetQuotaColor(remainingVal int) *color.Color {
 // FormatDuration formats a duration into a human-readable string (e.g., "2h 30m").
 func FormatDuration(d time.Duration) string {
 	d = d.Round(time.Minute)
+	days := d / (24 * time.Hour)
+	d -= days * 24 * time.Hour
 	h := d / time.Hour
 	d -= h * time.Hour
 	m := d / time.Minute
 
+	if days > 0 {
+		return fmt.Sprintf("%dd %dh %dm", days, h, m)
+	}
 	if h > 0 {
 		return fmt.Sprintf("%dh %dm", h, m)
 	}

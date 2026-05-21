@@ -79,18 +79,34 @@ func (c *Client) fetchCodexQuota(file models.AuthFile) (map[string]models.ModelL
 		modelName = "codex"
 	}
 
-	remaining := 100.0 - resp.RateLimit.PrimaryWindow.UsedPercent
-	if remaining < 0 {
-		remaining = 0
+	// Primary window (5h)
+	primaryRemaining := 100.0 - resp.RateLimit.PrimaryWindow.UsedPercent
+	if primaryRemaining < 0 {
+		primaryRemaining = 0
 	}
-
-	resetTime := time.Unix(resp.RateLimit.PrimaryWindow.ResetAt, 0).Format(time.RFC3339)
+	primaryResetTime := time.Unix(resp.RateLimit.PrimaryWindow.ResetAt, 0).Format(time.RFC3339)
 
 	limits[modelName] = models.ModelLimit{
-		Remaining:         fmt.Sprintf("%d%%", int(remaining)),
-		RemainingFraction: remaining / 100.0,
-		ResetTime:         resetTime,
+		Remaining:         fmt.Sprintf("%d%%", int(primaryRemaining)),
+		RemainingFraction: primaryRemaining / 100.0,
+		ResetTime:         primaryResetTime,
 	}
+
+	// Secondary window (weekly)
+	if resp.RateLimit.SecondaryWindow != nil {
+		secondaryRemaining := 100.0 - resp.RateLimit.SecondaryWindow.UsedPercent
+		if secondaryRemaining < 0 {
+			secondaryRemaining = 0
+		}
+		secondaryResetTime := time.Unix(resp.RateLimit.SecondaryWindow.ResetAt, 0).Format(time.RFC3339)
+
+		limits[modelName+" (weekly)"] = models.ModelLimit{
+			Remaining:         fmt.Sprintf("%d%%", int(secondaryRemaining)),
+			RemainingFraction: secondaryRemaining / 100.0,
+			ResetTime:         secondaryResetTime,
+		}
+	}
+
 	return limits, nil
 }
 
@@ -105,10 +121,8 @@ func (c *Client) fetchGoogleQuota(file models.AuthFile) (map[string]models.Model
 	}
 
 	data := "{}"
-	if file.Provider == "gemini-cli" {
-		targetURL = geminiQuotaURL
-		delete(headers, "User-Agent")
 
+	extractProjectID := func() string {
 		projectID := file.ProjectID
 		if projectID == "" && file.Account != "" {
 			if start := strings.Index(file.Account, "("); start != -1 {
@@ -117,7 +131,15 @@ func (c *Client) fetchGoogleQuota(file models.AuthFile) (map[string]models.Model
 				}
 			}
 		}
-		data = fmt.Sprintf(`{"project":"%s"}`, projectID)
+		return projectID
+	}
+
+	if file.Provider == "gemini-cli" {
+		targetURL = geminiQuotaURL
+		delete(headers, "User-Agent")
+		data = fmt.Sprintf(`{"project":"%s"}`, extractProjectID())
+	} else if file.Provider == "antigravity" {
+		data = fmt.Sprintf(`{"project":"%s"}`, extractProjectID())
 	}
 
 	proxyReqBody := models.ProxyRequest{
@@ -171,12 +193,17 @@ func (c *Client) fetchGoogleQuota(file models.AuthFile) (map[string]models.Model
 			return nil, err
 		}
 		for key, model := range googleResp.Models {
+			var remaining float64
+			var resetTime string
 			if model.QuotaInfo != nil {
-				limits[key] = models.ModelLimit{
-					Remaining:         fmt.Sprintf("%d%%", int(model.QuotaInfo.RemainingFraction*100)),
-					RemainingFraction: model.QuotaInfo.RemainingFraction,
-					ResetTime:         model.QuotaInfo.ResetTime,
-				}
+				remaining = model.QuotaInfo.RemainingFraction
+				resetTime = model.QuotaInfo.ResetTime
+			}
+			limits[key] = models.ModelLimit{
+				Remaining:         fmt.Sprintf("%d%%", int(remaining*100)),
+				RemainingFraction: remaining,
+				ResetTime:         resetTime,
+				DisplayName:       model.DisplayName,
 			}
 		}
 	}

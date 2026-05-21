@@ -3,7 +3,7 @@ package models
 type AuthFile struct {
 	ID        string  `json:"id"`
 	Email     string  `json:"email"`
-	Provider  string  `json:"provider"`
+	Provider  string  `json:"type"`
 	Disabled  bool    `json:"disabled"`
 	AuthIndex string  `json:"auth_index"`
 	ProjectID string  `json:"project_id"`
@@ -36,6 +36,7 @@ type ModelLimit struct {
 	Remaining         string  `json:"remaining"`
 	RemainingFraction float64 `json:"remainingFraction"`
 	ResetTime         string  `json:"resetTime"`
+	DisplayName       string  `json:"displayName"`
 }
 
 // Google response structures
@@ -76,9 +77,10 @@ type CodexUsageResponse struct {
 }
 
 type RateLimit struct {
-	Allowed       bool          `json:"allowed"`
-	LimitReached  bool          `json:"limit_reached"`
-	PrimaryWindow WindowDetails `json:"primary_window"`
+	Allowed         bool           `json:"allowed"`
+	LimitReached    bool           `json:"limit_reached"`
+	PrimaryWindow   WindowDetails  `json:"primary_window"`
+	SecondaryWindow *WindowDetails `json:"secondary_window"`
 }
 
 type WindowDetails struct {
