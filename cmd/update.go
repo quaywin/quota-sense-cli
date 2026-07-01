@@ -66,7 +66,13 @@ func getLatestRelease() (*releaseInfo, error) {
 		Timeout: 3 * time.Second,
 	}
 	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", repoOwner, repoName)
-	resp, err := client.Get(url)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "quota-sense-cli")
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -182,11 +188,24 @@ func doUpdate(release *releaseInfo) error {
 }
 
 func downloadFile(filepath string, url string) error {
-	resp, err := http.Get(url)
+	client := &http.Client{
+		Timeout: 2 * time.Minute,
+	}
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("User-Agent", "quota-sense-cli")
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("bad status: %s", resp.Status)
+	}
 
 	out, err := os.Create(filepath)
 	if err != nil {
