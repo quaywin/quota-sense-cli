@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -60,6 +61,17 @@ var rootCmd = &cobra.Command{
 	},
 }
 
+type displayEntry struct {
+	limit            models.ModelLimit
+	displayModelName string
+}
+
+type accountResult struct {
+	file        models.AuthFile
+	err         error
+	bestInGroup map[string]displayEntry
+}
+
 func displayQuota(cfg *config.Config) {
 	if cfg == nil {
 		return
@@ -74,7 +86,6 @@ func displayQuota(cfg *config.Config) {
 	}
 
 	var wg sync.WaitGroup
-	var mu sync.Mutex
 
 	fmt.Println()
 	if fullMode {
@@ -85,57 +96,52 @@ func displayQuota(cfg *config.Config) {
 		headerColor.Println(strings.Repeat("-", 115))
 	}
 
-	for _, file := range files {
+	results := make([]accountResult, len(files))
+
+	for i, file := range files {
 		wg.Add(1)
-		go func(f models.AuthFile) {
+		go func(idx int, f models.AuthFile) {
 			defer wg.Done()
 			limits, err := client.FetchQuota(f)
-			if err != nil {
-				if f.Disabled {
-					mu.Lock()
-					disabledColor := color.New(color.FgHiBlack)
-					emailStr := f.Email
-					if !strings.Contains(emailStr, "(disabled)") {
-						emailStr += " (disabled)"
+			res := accountResult{
+				file: f,
+				err:  err,
+			}
+			if err == nil {
+				bestInGroup := make(map[string]displayEntry)
+				for modelName, limit := range limits {
+					displayModelName := utils.GetDisplayModelName(modelName, f.Provider, fullMode)
+					if displayModelName == "" {
+						continue
 					}
-					disabledColor.Printf("%-40s | ", emailStr)
-					disabledColor.Printf("%-15s | ", f.Provider)
-					disabledColor.Printf("%-10s | ", "Disabled")
+
+					key := displayModelName
 					if fullMode {
-						disabledColor.Printf("%-15s | %-25s | %-20s\n", "-", "-", "-")
-					} else {
-						disabledColor.Printf("%-15s | %-20s\n", "-", "-")
+						key = modelName
 					}
-					mu.Unlock()
+
+					if existing, ok := bestInGroup[key]; !ok || limit.RemainingFraction < existing.limit.RemainingFraction {
+						bestInGroup[key] = displayEntry{limit, displayModelName}
+					}
 				}
-				return
+				res.bestInGroup = bestInGroup
 			}
+			results[idx] = res
+		}(i, file)
+	}
+	wg.Wait()
 
-			// Group by display model name, keeping the one with lowest remaining fraction.
-			type displayEntry struct {
-				limit            models.ModelLimit
-				displayModelName string
-			}
-			bestInGroup := make(map[string]displayEntry)
+	sort.SliceStable(results, func(i, j int) bool {
+		return !results[i].file.Disabled && results[j].file.Disabled
+	})
 
-			for modelName, limit := range limits {
-				displayModelName := utils.GetDisplayModelName(modelName, f.Provider, fullMode)
-				if displayModelName == "" {
-					continue
-				}
+	for _, res := range results {
+		f := res.file
+		err := res.err
+		bestInGroup := res.bestInGroup
 
-				key := displayModelName
-				if fullMode {
-					key = modelName
-				}
-
-				if existing, ok := bestInGroup[key]; !ok || limit.RemainingFraction < existing.limit.RemainingFraction {
-					bestInGroup[key] = displayEntry{limit, displayModelName}
-				}
-			}
-
-			if len(bestInGroup) == 0 && f.Disabled {
-				mu.Lock()
+		if err != nil {
+			if f.Disabled {
 				disabledColor := color.New(color.FgHiBlack)
 				emailStr := f.Email
 				if !strings.Contains(emailStr, "(disabled)") {
@@ -149,61 +155,74 @@ func displayQuota(cfg *config.Config) {
 				} else {
 					disabledColor.Printf("%-15s | %-20s\n", "-", "-")
 				}
-				mu.Unlock()
-				return
 			}
+			continue
+		}
 
-			for _, entry := range bestInGroup {
-				remainingStr := strings.TrimSuffix(entry.limit.Remaining, "%")
-				remainingVal, err := strconv.Atoi(remainingStr)
+		if len(bestInGroup) == 0 && f.Disabled {
+			disabledColor := color.New(color.FgHiBlack)
+			emailStr := f.Email
+			if !strings.Contains(emailStr, "(disabled)") {
+				emailStr += " (disabled)"
+			}
+			disabledColor.Printf("%-40s | ", emailStr)
+			disabledColor.Printf("%-15s | ", f.Provider)
+			disabledColor.Printf("%-10s | ", "Disabled")
+			if fullMode {
+				disabledColor.Printf("%-15s | %-25s | %-20s\n", "-", "-", "-")
+			} else {
+				disabledColor.Printf("%-15s | %-20s\n", "-", "-")
+			}
+			continue
+		}
 
-				var quotaColor *color.Color
-				var rowColor *color.Color
-				var modelColor *color.Color
+		for _, entry := range bestInGroup {
+			remainingStr := strings.TrimSuffix(entry.limit.Remaining, "%")
+			remainingVal, err := strconv.Atoi(remainingStr)
 
-				if f.Disabled {
-					rowColor = color.New(color.FgHiBlack)
-					quotaColor = rowColor
-					modelColor = rowColor
-				} else {
-					rowColor = color.New(color.FgWhite)
-					if err == nil {
-						quotaColor = utils.GetQuotaColor(remainingVal)
-						if remainingVal == 0 {
-							modelColor = color.New(color.FgRed, color.Bold)
-						} else {
-							modelColor = rowColor
-						}
+			var quotaColor *color.Color
+			var rowColor *color.Color
+			var modelColor *color.Color
+
+			if f.Disabled {
+				rowColor = color.New(color.FgHiBlack)
+				quotaColor = rowColor
+				modelColor = rowColor
+			} else {
+				rowColor = color.New(color.FgWhite)
+				if err == nil {
+					quotaColor = utils.GetQuotaColor(remainingVal)
+					if remainingVal == 0 {
+						modelColor = color.New(color.FgRed, color.Bold)
 					} else {
-						quotaColor = color.New(color.FgWhite)
 						modelColor = rowColor
 					}
-				}
-
-				resetStr := utils.GetResetString(entry.limit.ResetTime)
-
-				mu.Lock()
-				emailStr := f.Email
-				if f.Disabled && !strings.Contains(emailStr, "(disabled)") {
-					emailStr += " (disabled)"
-				}
-
-				rowColor.Printf("%-40s | ", emailStr)
-				rowColor.Printf("%-15s | ", f.Provider)
-				quotaColor.Printf("%-10s | ", entry.limit.Remaining)
-				if fullMode {
-					rowColor.Printf("%-15s | ", resetStr)
-					modelColor.Printf("%-25s | ", entry.limit.DisplayName)
-					modelColor.Printf("%-20s\n", entry.displayModelName)
 				} else {
-					rowColor.Printf("%-15s | ", resetStr)
-					modelColor.Printf("%-20s\n", entry.displayModelName)
+					quotaColor = color.New(color.FgWhite)
+					modelColor = rowColor
 				}
-				mu.Unlock()
 			}
-		}(file)
+
+			resetStr := utils.GetResetString(entry.limit.ResetTime)
+
+			emailStr := f.Email
+			if f.Disabled && !strings.Contains(emailStr, "(disabled)") {
+				emailStr += " (disabled)"
+			}
+
+			rowColor.Printf("%-40s | ", emailStr)
+			rowColor.Printf("%-15s | ", f.Provider)
+			quotaColor.Printf("%-10s | ", entry.limit.Remaining)
+			if fullMode {
+				rowColor.Printf("%-15s | ", resetStr)
+				modelColor.Printf("%-25s | ", entry.limit.DisplayName)
+				modelColor.Printf("%-20s\n", entry.displayModelName)
+			} else {
+				rowColor.Printf("%-15s | ", resetStr)
+				modelColor.Printf("%-20s\n", entry.displayModelName)
+			}
+		}
 	}
-	wg.Wait()
 }
 
 func Execute() {
